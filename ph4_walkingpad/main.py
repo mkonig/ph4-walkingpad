@@ -73,6 +73,14 @@ class WalkingPadControl(Ph4Cmd):
         if self.args.no_bt:
             return
 
+        if self.args.force_disconnect:
+            logger.info("Force disconnect requested, attempting to disconnect first...")
+            try:
+                tmp_ctler = Controller(address=address, do_read_chars=False)
+                await tmp_ctler.disconnect()
+            except Exception as e:
+                logger.debug("Pre-disconnect failed (expected if not connected): %s" % (e,))
+
         self.ctler = Controller(address=address, do_read_chars=False)
         self.ctler.log_messages_info = self.args.cmd
         self.ctler.ignore_bad_packets = self.args.ignore_bad_packets
@@ -443,23 +451,14 @@ class WalkingPadControl(Ph4Cmd):
         parser.add_argument(
             "--scan-timeout", dest="scan_timeout", type=float, default=3.0, help="Scan timeout in seconds, double"
         )
+        parser.add_argument(
+            "--force-disconnect",
+            dest="force_disconnect",
+            action="store_const",
+            const=True,
+            help="Try to disconnect before connecting (use if previous session didn't disconnect cleanly)",
+        )
         return parser
-
-    async def stop_belt(self, to_standby=False):
-        await self.ctler.stop_belt()
-        if to_standby:
-            await asyncio.sleep(1.5)
-            await self.ctler.switch_mode(WalkingPad.MODE_STANDBY)
-
-    async def start_belt(self, manual=True):
-        if manual:
-            await self.ctler.switch_mode(WalkingPad.MODE_MANUAL)
-            await asyncio.sleep(1.5)
-            await self.ctler.start_belt()
-        else:
-            await self.ctler.switch_mode(WalkingPad.MODE_AUTOMAT)
-            await asyncio.sleep(1.5)
-            await self.ctler.start_belt()
 
     async def switch_mode(self, mode):
         if mode == "manual":
@@ -470,6 +469,16 @@ class WalkingPadControl(Ph4Cmd):
             await self.ctler.switch_mode(WalkingPad.MODE_STANDBY)
         else:
             print("Unknown mode: %s. Supported: manual, auto, standby" % (mode,))
+
+    async def start_belt(self):
+        await self.ctler.switch_mode(WalkingPad.MODE_MANUAL)
+        await asyncio.sleep(0.5)
+        await self.ctler.start_belt()
+
+    async def stop_belt(self):
+        await self.ctler.stop_belt()
+        await asyncio.sleep(0.5)
+        await self.ctler.switch_mode(WalkingPad.MODE_STANDBY)
 
     async def ask_beep(self):
         self.asked_status_beep = True
@@ -599,31 +608,41 @@ class WalkingPadControl(Ph4Cmd):
 
     def do_ask_stats(self, line):
         """Asks for the latest status, does not print anything"""
-        self.submit_coro(self.ask_status())
+        self.submit_coro(self.ask_status(), self.loop)
 
     def do_ask_beep(self, line):
         """Asks for the latest status, does not print anything"""
-        self.submit_coro(self.ask_beep())
+        self.submit_coro(self.ask_beep(), self.loop)
 
     def do_ask_last(self, line):
         """Asks for the latest record, does not print anything"""
-        self.submit_coro(self.ctler.ask_hist())
+        self.submit_coro(self.ctler.ask_hist(), self.loop)
 
     def do_speed(self, line):
         """Change speed of the running belt. Enter as speed * 10, e.g. 20 for 2.0 km/h"""
-        self.submit_coro(self.ctler.change_speed(int(line)))
+        self.submit_coro(self.ctler.change_speed(int(line)), self.loop)
+
+    def do_raw(self, line):
+        """Send raw hex command to the belt (CRC auto-fixed). E.g.: raw f7 a2 04 01 ff fd"""
+        try:
+            hex_str = str(line).replace(" ", "").strip()
+            cmd = bytearray(binascii.unhexlify(hex_str))
+            self.poutput("Sending raw command: %s" % " ".join("%02x" % b for b in cmd))
+            self.submit_coro(self.ctler.send_cmd(cmd), self.loop)
+        except Exception as e:
+            self.poutput("Error parsing hex: %s" % e)
 
     def do_start(self, line):
         """Start the belt in the manual mode"""
-        self.submit_coro(self.start_belt(True))
+        self.submit_coro(self.start_belt(), self.loop)
 
     def do_stop(self, line):
         """Stop the belt, switch to standby"""
-        self.submit_coro(self.stop_belt(True))
+        self.submit_coro(self.stop_belt(), self.loop)
 
     def do_switch_mode(self, line):
         """Switch mode of the belt"""
-        self.submit_coro(self.switch_mode(line.strip()))
+        self.submit_coro(self.switch_mode(line.strip()), self.loop)
 
     def do_status(self, line):
         """Print the last received status"""

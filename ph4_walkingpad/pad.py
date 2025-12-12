@@ -201,7 +201,9 @@ class WalkingPadCurStatus:
                 self.manual_mode,
                 self.app_speed / 30 if self.app_speed > 0 else 0,
                 self.manual_mode,
-                binascii.hexlify(bytearray([self.raw[15], self.raw[17]])).decode("utf8"),
+                binascii.hexlify(
+                    bytearray([self.raw[15], self.raw[17]] if len(self.raw) > 17 else self.raw[15:])
+                ).decode("utf8"),
             )
         )
 
@@ -272,7 +274,6 @@ class Controller:
     def notif_handler(self, sender, data):
         logger_fnc = logger.info if self.log_messages_info else logger.debug
         msg_hex = ", ".join("{:02x}".format(x) for x in data)
-        logger_fnc("Msg: %s" % msg_hex)
         already_notified = False
 
         try:

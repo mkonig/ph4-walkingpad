@@ -1,3 +1,70 @@
 [tool.black]
 line-length = 120
 readme = "README.md"
+
+[tool.pdm]
+distribution = false
+
+[project]
+name = "ph4-walkingpad"
+version = "1.0.2"
+description = "Walkingpad A1 controller via Bluetooth LE"
+authors = [
+    {name = "mkonig", email = "koenig@v-i-t.de"},
+    {name = "Dusan Klinec", email = "dusan.klinec@gmail.com"},
+]
+dependencies = [
+    "setuptools>=80.9.0",
+    "aioconsole==0.3.1",
+    "asyncio",
+    "bleak>=0.15.1",
+    "blessed",
+    "coloredlogs",
+    "future",
+    "ph4-acmd2>=1.0.0",
+    "requests",
+    "setuptools>=1.0",
+    "six",
+    "structlog>=25.5.0",
+]
+requires-python = "==3.13.*"
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 2",
+    "Programming Language :: Python :: 2.6",
+    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.3",
+    "Programming Language :: Python :: 3.4",
+    "Programming Language :: Python :: 3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/ph4r05/ph4-walkingpad"
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "pep8",
+    "pre-commit",
+    "pypandoc",
+    "pytest",
+    "types-requests",
+]
+docs = [
+    "Sphinx>=1.0",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-programoutput",
+]
+
+[project.scripts]
+ph4-cal = "ph4_walkingpad.cal:main"
+ph4-walkingpad-ctl = "ph4_walkingpad.main:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
