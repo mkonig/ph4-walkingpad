@@ -1,4 +1,7 @@
 .idea
+walking.json
+.pdm-python
+scripts/*
 *.pyc
 dist
 bin
