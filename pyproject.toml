@@ -16,7 +16,6 @@ authors = [
 dependencies = [
     "setuptools>=80.9.0",
     "aioconsole",
-    "asyncio",
     "bleak>=0.15.1",
     "blessed",
     "coloredlogs",

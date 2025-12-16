@@ -5,7 +5,6 @@ version = "1.0.2"
 # Please update tox.ini when modifying dependency version requirements
 install_requires = [
     "setuptools>=1.0",
-    "asyncio",
     "coloredlogs",
     "bleak>=0.15.1",
     "ph4-acmd2>=1.0.0",
