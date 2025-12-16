@@ -143,7 +143,8 @@ class WalkingPad:
 
     @staticmethod
     def byte2int(val, width=3):
-        return sum([(val[i] << (8 * (width - 1 - i))) for i in range(width)])
+        actual_width = min(width, len(val))
+        return sum([(val[i] << (8 * (width - 1 - i))) for i in range(actual_width)])
 
     @staticmethod
     def fix_crc(cmd):
@@ -166,14 +167,14 @@ class WalkingPadCurStatus:
 
     def load_from(self, cmd):
         self.raw = bytearray(cmd)
-        self.belt_state = cmd[2]
-        self.speed = cmd[3]
-        self.manual_mode = cmd[4]
-        self.time = WalkingPad.byte2int(cmd[5:])
-        self.dist = WalkingPad.byte2int(cmd[8:])
-        self.steps = WalkingPad.byte2int(cmd[11:])
-        self.app_speed = cmd[14]  # / 30
-        self.controller_button = cmd[16]
+        self.belt_state = cmd[2] if len(cmd) > 2 else 0
+        self.speed = cmd[3] if len(cmd) > 3 else 0
+        self.manual_mode = cmd[4] if len(cmd) > 4 else 0
+        self.time = WalkingPad.byte2int(cmd[5:8]) if len(cmd) > 5 else 0
+        self.dist = WalkingPad.byte2int(cmd[8:11]) if len(cmd) > 8 else 0
+        self.steps = WalkingPad.byte2int(cmd[11:14]) if len(cmd) > 11 else 0
+        self.app_speed = cmd[14] if len(cmd) > 14 else 0
+        self.controller_button = cmd[16] if len(cmd) > 16 else 0
         self.rtime = time.time()
 
     @staticmethod
@@ -189,6 +190,13 @@ class WalkingPadCurStatus:
         return m
 
     def __str__(self):
+        rest_bytes = bytearray()
+        if self.raw and len(self.raw) > 15:
+            if len(self.raw) > 17:
+                rest_bytes = bytearray([self.raw[15], self.raw[17]])
+            else:
+                rest_bytes = self.raw[15:]
+
         return (
             "WalkingPadCurStatus(dist=%s, time=%s, steps=%s, speed=%s, state=%s, "
             "mode=%s, app_speed=%s, button=%s, rest=%s)"
@@ -201,9 +209,7 @@ class WalkingPadCurStatus:
                 self.manual_mode,
                 self.app_speed / 30 if self.app_speed > 0 else 0,
                 self.manual_mode,
-                binascii.hexlify(
-                    bytearray([self.raw[15], self.raw[17]] if len(self.raw) > 17 else self.raw[15:])
-                ).decode("utf8"),
+                binascii.hexlify(rest_bytes).decode("utf8") if rest_bytes else "00",
             )
         )
 

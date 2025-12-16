@@ -35,6 +35,16 @@ logger = logging.getLogger(__name__)
 coloredlogs.CHROOT_FILES = []
 coloredlogs.install(level=logging.INFO)
 
+log_file = os.path.expanduser("~/.walkingpad.log")
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(file_formatter)
+logging.getLogger().addHandler(file_handler)
+
+logging.getLogger("dbus_fast").setLevel(logging.ERROR)
+logging.getLogger("bleak").setLevel(logging.ERROR)
+
 
 class WalkingPadControl(Ph4Cmd):
     def __init__(self, *args, **kwargs):
@@ -105,6 +115,16 @@ class WalkingPadControl(Ph4Cmd):
         if self.args.scan:
             return
 
+        if not address:
+            logger.error("No WalkingPad device found. Please check:")
+            logger.error("  - Device is powered on and nearby")
+            logger.error("  - Bluetooth is enabled on your computer")
+            if self.args.address:
+                logger.error("  - Address '%s' is correct" % (self.args.address,))
+            else:
+                logger.error("  - Try running with --scan to see available devices")
+            return
+
         await self.connect(address)
         # await asyncio.wait_for(self.connect(address), None, loop=self.worker_loop)
 
@@ -169,21 +189,26 @@ class WalkingPadControl(Ph4Cmd):
         if self.args.no_bt:
             return
 
-        if self.stats_thread is None:
-            self.init_stats_fetcher()
-
         logger.info("Starting stats fetching")
         self.stats_collecting = True
-        self.submit_coro(self.stats_fetcher(), self.stats_loop)
+        self.submit_coro(self.stats_fetcher(), self.loop)
 
     async def stats_fetcher(self):
+        await asyncio.sleep(2)
         while self.stats_collecting:
             try:
-                # await asyncio.wait_for(self.ctler.ask_stats(), None, loop=self.worker_loop)
+                if not self.ctler:
+                    logger.debug("Controller not initialized yet, skipping stats fetch")
+                    await asyncio.sleep(0.5)
+                    continue
                 await self.ctler.ask_stats()
                 await asyncio.sleep(max(500, self.args.stats or 0) / 1000.0)
+            except asyncio.CancelledError:
+                logger.debug("Stats fetcher cancelled")
+                break
             except Exception as e:
-                logger.info("Error in ask stats: %s" % (e,))
+                logger.debug("Error in ask stats: %s" % (e,))
+                await asyncio.sleep(1)
 
     async def entry(self):
         aux = " (bluetooth disabled)" if self.args.no_bt else ""
@@ -620,7 +645,12 @@ class WalkingPadControl(Ph4Cmd):
 
     def do_speed(self, line):
         """Change speed of the running belt. Enter as speed * 10, e.g. 20 for 2.0 km/h"""
-        self.submit_coro(self.ctler.change_speed(int(line)), self.loop)
+        try:
+            speed = int(line)
+            self.submit_coro(self.ctler.change_speed(speed), self.loop)
+        except Exception as e:
+            self.poutput("Error: %s" % e)
+            logger.exception("Error in do_speed")
 
     def do_raw(self, line):
         """Send raw hex command to the belt (CRC auto-fixed). E.g.: raw f7 a2 04 01 ff fd"""
@@ -631,14 +661,23 @@ class WalkingPadControl(Ph4Cmd):
             self.submit_coro(self.ctler.send_cmd(cmd), self.loop)
         except Exception as e:
             self.poutput("Error parsing hex: %s" % e)
+            logger.exception("Error in do_raw")
 
     def do_start(self, line):
         """Start the belt in the manual mode"""
-        self.submit_coro(self.start_belt(), self.loop)
+        try:
+            self.submit_coro(self.start_belt(), self.loop)
+        except Exception as e:
+            self.poutput("Error: %s" % e)
+            logger.exception("Error in do_start")
 
     def do_stop(self, line):
         """Stop the belt, switch to standby"""
-        self.submit_coro(self.stop_belt(), self.loop)
+        try:
+            self.submit_coro(self.stop_belt(), self.loop)
+        except Exception as e:
+            self.poutput("Error: %s" % e)
+            logger.exception("Error in do_stop")
 
     def do_switch_mode(self, line):
         """Switch mode of the belt"""
