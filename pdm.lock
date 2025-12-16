@@ -5,19 +5,20 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:c53b6349335a9fd4ddfa299106153db1a8913d6f0912c70ea643f6c82066f6ed"
+content_hash = "sha256:47e0d60d9f80a7f422162ca9b48eca10900d1e5b088fd0f0dff88c4d610fb797"
 
 [[metadata.targets]]
 requires_python = "==3.13.*"
 
 [[package]]
 name = "aioconsole"
-version = "0.3.1"
-requires_python = ">=3.6"
+version = "0.8.2"
+requires_python = ">=3.8"
 summary = "Asynchronous console and interfaces for asyncio"
 groups = ["default"]
 files = [
-    {file = "aioconsole-0.3.1.tar.gz", hash = "sha256:7c038bb40b7690bf5be6b17154830b7bff25e7be1c02d8420a346c3efbd5d8e5"},
+    {file = "aioconsole-0.8.2-py3-none-any.whl", hash = "sha256:00f3fabd6de5df2fad635e1e6a13ebe5bb2456b83b31e881ae41bc5862fd6a68"},
+    {file = "aioconsole-0.8.2.tar.gz", hash = "sha256:25cb5530f58f7ab431e9af84fbb5417178287b6c3300d5b1185e3b129a227cef"},
 ]
 
 [[package]]

@@ -15,7 +15,7 @@ authors = [
 ]
 dependencies = [
     "setuptools>=80.9.0",
-    "aioconsole==0.3.1",
+    "aioconsole",
     "asyncio",
     "bleak>=0.15.1",
     "blessed",
