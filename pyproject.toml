@@ -20,11 +20,9 @@ dependencies = [
     "bleak>=0.15.1",
     "blessed",
     "coloredlogs",
-    "future",
     "ph4-acmd2>=1.0.0",
     "requests",
     "setuptools>=1.0",
-    "six",
     "structlog>=25.5.0",
 ]
 requires-python = "==3.13.*"
