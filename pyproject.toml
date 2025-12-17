@@ -21,7 +21,6 @@ dependencies = [
     "coloredlogs",
     "requests",
     "setuptools>=1.0",
-    "structlog>=25.5.0",
     "cmd2<3.0.0",
 ]
 requires-python = "==3.13.*"

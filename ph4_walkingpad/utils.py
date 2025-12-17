@@ -15,11 +15,12 @@ def defval(js, key, default=None):
 
 
 def setup_logging():
+    import coloredlogs
+
     log = logging.getLogger(__name__)
     log.setLevel(logging.DEBUG)
-    h = logging.StreamHandler(sys.stdout)
-    h.setLevel(logging.DEBUG)
-    log.addHandler(h)
+    fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    coloredlogs.install(level="DEBUG", logger=log, fmt=fmt)
     return log
 
 
