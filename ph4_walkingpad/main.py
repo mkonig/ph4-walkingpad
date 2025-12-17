@@ -221,10 +221,38 @@ class WalkingPadControl(Ph4Cmd):
             + "-" * self.get_term_width()
         )
 
-        # if self.args.no_bt:
-        #     self.cmdloop()
-        # else:
-        await self.acmdloop()
+        # Ensure we have an asyncio loop for coordination
+        if not getattr(self, "loop", None):
+            try:
+                self.loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self.loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self.loop)
+
+        # If running in the main thread, run cmdloop here (normal synchronous flow).
+        # If running in a background thread (when main() starts asyncio in background),
+        # don't start cmdloop from the background thread (cmd2 requires main thread).
+        # Instead create an asyncio Event and wait until the main thread runs cmdloop
+        # and notifies us that it finished.
+        if threading.current_thread() is threading.main_thread():
+            # Running in main thread: call cmdloop directly (blocks until exit)
+            self.cmdloop()
+            return
+
+        # Running in background thread: wait for main thread to run cmdloop
+        self._cmdloop_event = asyncio.Event()
+        await self._cmdloop_event.wait()
+
+    def notify_cmdloop_finished(self):
+        # Called from the main thread after cmdloop finishes to wake background entry()
+        if getattr(self, "loop", None) and hasattr(self, "_cmdloop_event"):
+            try:
+                self.loop.call_soon_threadsafe(self._cmdloop_event.set)
+            except Exception:
+                # Best-effort: ignore if loop is already closed
+                pass
+        else:
+            self._cmdloop_finished = True
 
     def on_status(self, sender, status: WalkingPadCurStatus):
         # Calories computation with respect to the last segment of the same speed.
@@ -287,11 +315,17 @@ class WalkingPadControl(Ph4Cmd):
 
         if self.asked_status:
             self.asked_status = False
-            print(str(status) + ccal_str)
+            if getattr(self, "loop", None):
+                self.loop.call_soon_threadsafe(self.poutput, str(status) + ccal_str)
+            else:
+                print(str(status) + ccal_str)
 
         elif self.asked_status_beep:
             self.asked_status_beep = False
-            print(str(status) + ccal_str)
+            if getattr(self, "loop", None):
+                self.loop.call_soon_threadsafe(self.poutput, str(status) + ccal_str)
+            else:
+                print(str(status) + ccal_str)
 
         if not self.args.json_file:
             return
@@ -319,7 +353,10 @@ class WalkingPadControl(Ph4Cmd):
             fh.write("\n")
 
     def on_last_record(self, sender, status: WalkingPadLastStatus):
-        print(status)
+        if getattr(self, "loop", None):
+            self.loop.call_soon_threadsafe(self.poutput, str(status))
+        else:
+            print(status)
 
     def load_profile(self):
         if not self.args.profile:
@@ -410,6 +447,13 @@ class WalkingPadControl(Ph4Cmd):
 
     async def main(self):
         logger.debug("App started")
+
+        # Ensure the instance knows the running asyncio loop
+        try:
+            self.loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
 
         parser = self.argparser()
         self.args_src = sys.argv
@@ -725,17 +769,36 @@ class WalkingPadControl(Ph4Cmd):
 
 
 def main():
-    try:
-        loop = asyncio.get_running_loop()
-    except Exception:
-        loop = asyncio.new_event_loop()
-
-    loop.set_debug(True)
     br = WalkingPadControl()
-    loop.run_until_complete(br.main())
 
-    # Alternatively
-    # asyncio.run(br.main())
+    def run_background():
+        try:
+            asyncio.run(br.main())
+        except Exception as e:
+            logger.exception("Background asyncio loop crashed: %s", e)
+
+    bg_thread = threading.Thread(target=run_background, daemon=True)
+    bg_thread.start()
+
+    # Wait shortly for the background asyncio loop to initialize
+    start = time.time()
+    while getattr(br, "loop", None) is None and time.time() - start < 5:
+        time.sleep(0.01)
+
+    try:
+        # Run cmdloop in the main thread (cmd2 requires this)
+        br.cmdloop()
+    except Exception as e:
+        logger.exception("cmdloop terminated with exception: %s", e)
+    finally:
+        # Notify the background asyncio task that cmdloop finished so it can exit
+        try:
+            br.notify_cmdloop_finished()
+        except Exception:
+            pass
+
+    # Give background thread a moment to finish cleanup
+    bg_thread.join(timeout=1)
 
 
 if __name__ == "__main__":

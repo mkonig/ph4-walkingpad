@@ -15,7 +15,7 @@ import logging
 import sys
 
 from blessed import Terminal
-from ph4acmd2 import Cmd as Cmd2
+from cmd2 import Cmd as Cmd2
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,31 @@ class Ph4Cmd(Cmd2):
             self._exec_cmd(line)
             print(self.prompt)
             sys.stdout.flush()
+
+    async def acmdloop(self):
+        """Async command loop compatible with previous ph4-acmd2 usage."""
+        try:
+            self.loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+        if getattr(self, "intro", None):
+            print(self.intro)
+        # ensure prompt shown
+        print(self.prompt, end="", flush=True)
+        reader_task = asyncio.create_task(self._read_line())
+        try:
+            while self.cmd_running:
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if not reader_task.done():
+                reader_task.cancel()
+                try:
+                    await reader_task
+                except asyncio.CancelledError:
+                    pass
 
     def looper(self, loop):
         logger.debug("Starting looper for loop %s" % (loop,))

@@ -7,7 +7,7 @@ install_requires = [
     "setuptools>=1.0",
     "coloredlogs",
     "bleak>=0.15.1",
-    "ph4-acmd2>=1.0.0",
+    "cmd2<3.0.0",
     "blessed",
     "requests",
     "aioconsole==0.3.1",
