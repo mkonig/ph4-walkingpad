@@ -393,9 +393,11 @@ class WalkingPadControl(Ph4Cmd):
         return res
 
     def load_stats(self):
-        """Compute last unfinished walk from the stats file (segments of the same speed)"""
+        """Compute last unfinished walk from the stats file (segments of the same speed).
+        Returns a string containing the calories message or None if there's nothing to show.
+        """
         if not self.args.json_file:
-            return
+            return None
 
         self.analysis = StatsAnalysis(profile=self.profile, stats_file=self.args.json_file)
         accs = self.analysis.load_last_stats(5)
@@ -405,10 +407,11 @@ class WalkingPadControl(Ph4Cmd):
         self.calorie_acc_net = accs[1]
 
         if accs[0] or accs[1]:
-            self.poutput(
-                "Calories burned so far this walk: %7.2f kcal, %7.2f kcal net"
-                % (sum(self.calorie_acc), sum(self.calorie_acc_net))
+            return "Calories burned so far this walk: %7.2f kcal, %7.2f kcal net" % (
+                sum(self.calorie_acc),
+                sum(self.calorie_acc_net),
             )
+        return None
 
     def compute_initial_cal(self, status: WalkingPadCurStatus):
         self.last_speed_change_rec = status  # default
@@ -468,10 +471,8 @@ class WalkingPadControl(Ph4Cmd):
 
         self.load_profile()
 
-        try:
-            self.load_stats()
-        except Exception as e:
-            logger.debug("Stats loading failed: %s" % (e,))
+        # Stats loading moved to main thread to ensure prompt ordering.
+        # Background thread no longer prints startup stats.
 
         try:
             await self.work()
@@ -786,6 +787,19 @@ def main():
         time.sleep(0.01)
 
     try:
+        # Wait for background thread to parse args/profile so we can load stats
+        # from the main thread and print them before the first prompt.
+        start_wait = time.time()
+        while getattr(br, "args", None) is None and time.time() - start_wait < 5:
+            time.sleep(0.01)
+
+        try:
+            msg = br.load_stats()
+            if msg:
+                print(msg)
+        except Exception:
+            logger.debug("Loading startup stats from main thread failed", exc_info=True)
+
         # Run cmdloop in the main thread (cmd2 requires this)
         br.cmdloop()
     except Exception as e:
