@@ -14,6 +14,7 @@ import threading
 import time
 from collections import OrderedDict
 from typing import Optional, Union
+from datetime import datetime
 
 import coloredlogs
 from aioconsole import ainput, get_standard_streams
@@ -57,6 +58,7 @@ class WalkingPadControl(Ph4Cmd):
         self.analysis = None  # type: Optional[StatsAnalysis]
         self.loaded_margins = []
         self.streams = None
+        self.session = None
 
         self.worker_thread = None
         self.stats_thread = None
@@ -344,6 +346,7 @@ class WalkingPadControl(Ph4Cmd):
         )
         js["rec_time"] = status.rtime if status is not None else None
         js["pid"] = self.profile.pid if self.profile else None
+        js["session"] = self.session
         js["ccal"] = round(ccal * 1000) / 1000 if ccal else None
         js["ccal_net"] = round(ccal_net * 1000) / 1000 if ccal_net else None
         js["ccal_sum"] = round(ccal_sum * 1000) / 1000 if ccal_sum else None
@@ -711,6 +714,8 @@ class WalkingPadControl(Ph4Cmd):
     def do_start(self, line):
         """Start the belt in the manual mode"""
         try:
+            # generate session id when the user issues 'start' (YYYYmmddTHHMMSS)
+            self.session = datetime.now().strftime("%Y%m%dT%H%M%S")
             self.submit_coro(self.start_belt(), self.loop)
         except Exception as e:
             self.poutput("Error: %s" % e)
