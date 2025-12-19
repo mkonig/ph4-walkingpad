@@ -127,7 +127,28 @@ class WalkingPadControl(Ph4Cmd):
                 logger.error("  - Try running with --scan to see available devices")
             return
 
-        await self.connect(address)
+        try:
+            await self.connect(address)
+        except Exception as e:
+            try:
+                from bleak.exc import BleakDeviceNotFoundError
+            except Exception:
+                BleakDeviceNotFoundError = None
+
+            if BleakDeviceNotFoundError is not None and isinstance(e, BleakDeviceNotFoundError):
+                addr = getattr(self.args, "address", None)
+                friendly = (
+                    f"Device with address {addr} was not found. "
+                    "Please ensure the device is powered on, in range, and the address is correct."
+                )
+                try:
+                    print(friendly)
+                except Exception:
+                    pass
+                logger.info("Device not found: %s", e)
+                return
+            # Re-raise other exceptions to be handled upstream
+            raise
         # await asyncio.wait_for(self.connect(address), None, loop=self.worker_loop)
 
         if self.args.stats:
@@ -480,7 +501,27 @@ class WalkingPadControl(Ph4Cmd):
         try:
             await self.work()
         except Exception as e:
-            logger.error("Exception in the main entry point: %s" % (e,), exc_info=e)
+            # If the BLE backend couldn't find the device, show a friendly message instead of a traceback
+            try:
+                from bleak.exc import BleakDeviceNotFoundError
+            except Exception:
+                BleakDeviceNotFoundError = None
+
+            if BleakDeviceNotFoundError is not None and isinstance(e, BleakDeviceNotFoundError):
+                addr = getattr(self.args, "address", None)
+                friendly = (
+                    f"Device with address {addr} was not found. "
+                    "Please ensure the device is powered on, in range, and the address is correct."
+                )
+                try:
+                    # If running interactively, print a user-facing message
+                    print(friendly)
+                except Exception:
+                    pass
+                # Log at INFO so it still appears in logs without an exception traceback
+                logger.info("Device not found: %s", e)
+            else:
+                logger.error("Exception in the main entry point: %s" % (e,), exc_info=e)
         finally:
             await self.disconnect()
 
@@ -781,7 +822,24 @@ def main():
         try:
             asyncio.run(br.main())
         except Exception as e:
-            logger.exception("Background asyncio loop crashed: %s", e)
+            try:
+                from bleak.exc import BleakDeviceNotFoundError
+            except Exception:
+                BleakDeviceNotFoundError = None
+
+            if BleakDeviceNotFoundError is not None and isinstance(e, BleakDeviceNotFoundError):
+                addr = getattr(getattr(br, "args", None), "address", None)
+                friendly = (
+                    f"Device with address {addr} was not found. "
+                    "Please ensure the device is powered on, in range, and the address is correct."
+                )
+                try:
+                    print(friendly)
+                except Exception:
+                    pass
+                logger.info("Background: Device not found: %s", e)
+            else:
+                logger.exception("Background asyncio loop crashed: %s", e)
 
     bg_thread = threading.Thread(target=run_background, daemon=True)
     bg_thread.start()
